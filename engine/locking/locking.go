@@ -82,3 +82,7 @@ func (e *LockingEngine) Begin(level engine.IsolationLevel) engine.Tx {
 
 	return newTx(e, e.maxTxID)
 }
+
+func (e *LockingEngine) GC() (active, removed int) {
+	return 0, 0
+}

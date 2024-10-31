@@ -95,3 +95,7 @@ func (e *AppendOnlyEngine) Begin(level engine.IsolationLevel) engine.Tx {
 func (e *AppendOnlyEngine) commit(tx *Tx) {
 	e.txInfo.Delete(tx.ID)
 }
+
+func (e *AppendOnlyEngine) GC() (active, removed int) {
+	return e.storage.Vacuum(e.txInfo)
+}

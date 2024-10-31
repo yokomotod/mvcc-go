@@ -18,6 +18,7 @@ func TestEngine(t *testing.T) {
 		level  engine.IsolationLevel
 		want1  string
 		want2  string
+		wantGC int
 	}{
 		{
 			name:   "Naive",
@@ -25,6 +26,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.ReadCommitted, // ignored
 			want1:  "value1",             // dirty read
 			want2:  "value2",             // dirty read
+			wantGC: 0,
 		},
 		{
 			name:   "Locking",
@@ -32,6 +34,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.ReadCommitted, // ignored
 			want1:  "value2",             // read committed
 			want2:  "value2",             // read committed
+			wantGC: 0,
 		},
 
 		{
@@ -40,6 +43,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.RepeatableRead,
 			want1:  "value0", // repeatable read
 			want2:  "value0", // repeatable read
+			wantGC: 1,        // value0
 		},
 		{
 			name:   "Delta_RepeatableRead",
@@ -47,6 +51,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.RepeatableRead,
 			want1:  "value0", // repeatable read
 			want2:  "value0", // repeatable read
+			wantGC: 0,
 		},
 
 		{
@@ -55,6 +60,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.ReadCommitted,
 			want1:  "value0", // read committed without lock
 			want2:  "value2", // read committed without lock
+			wantGC: 1,        // valueX, value0, value1
 		},
 		{
 			name:   "Delta_ReadCommitted",
@@ -62,6 +68,7 @@ func TestEngine(t *testing.T) {
 			level:  engine.ReadCommitted,
 			want1:  "value0", // read committed without lock
 			want2:  "value2", // read committed without lock
+			wantGC: 0,
 		},
 	}
 
@@ -101,6 +108,11 @@ func TestEngine(t *testing.T) {
 			err = tx2.Commit()
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			active, _ := c.engine.GC()
+			if active != 0 {
+				t.Fatalf("expected 0 active, but got %d", active)
 			}
 
 			wg := sync.WaitGroup{}
@@ -177,6 +189,14 @@ func TestEngine(t *testing.T) {
 			}()
 
 			wg.Wait()
+
+			active, removed := c.engine.GC()
+			if active != 0 {
+				t.Errorf("expected 0 active, but got %d", active)
+			}
+			if removed != c.wantGC {
+				t.Errorf("expected %d removed, but got %d", c.wantGC, removed)
+			}
 		})
 	}
 }

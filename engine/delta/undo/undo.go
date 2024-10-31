@@ -15,7 +15,8 @@ type UndoLogPtr struct {
 }
 
 type undoLog struct {
-	records []*Record
+	commitNo int
+	records  []*Record
 }
 
 type UndoLogs struct {
@@ -45,7 +46,8 @@ func (u *UndoLogs) Get(ptr UndoLogPtr) *Record {
 func (u *UndoLogs) Append(txID int, record *Record) UndoLogPtr {
 	if _, ok := u.logs[txID]; !ok {
 		u.logs[txID] = &undoLog{
-			records: make([]*Record, 0),
+			commitNo: 0,
+			records:  make([]*Record, 0),
 		}
 	}
 
@@ -55,4 +57,38 @@ func (u *UndoLogs) Append(txID int, record *Record) UndoLogPtr {
 		txID:     txID,
 		logIndex: len(u.logs[txID].records) - 1,
 	}
+}
+
+func (u *UndoLogs) HasLogs(txID int) bool {
+	_, ok := u.logs[txID]
+	return ok
+}
+
+func (u *UndoLogs) Delete(txID int) {
+	delete(u.logs, txID)
+}
+
+func (u *UndoLogs) SetCommitNo(txID, commitNo int) {
+	if _, ok := u.logs[txID]; !ok {
+		return
+	}
+
+	u.logs[txID].commitNo = commitNo
+}
+
+func (u *UndoLogs) GetCommitNo(txID int) int {
+	if _, ok := u.logs[txID]; !ok {
+		return 0
+	}
+
+	return u.logs[txID].commitNo
+}
+
+func (u *UndoLogs) Len() int {
+	cnt := 0
+	for _, log := range u.logs {
+		cnt += len(log.records)
+	}
+
+	return cnt
 }

@@ -49,3 +49,7 @@ func NewNaiveEngine() *NaiveEngine {
 func (e *NaiveEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	return newTx(e.storage)
 }
+
+func (e *NaiveEngine) GC() (active, removed int) {
+	return 0, 0
+}

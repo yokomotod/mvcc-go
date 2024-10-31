@@ -18,4 +18,5 @@ const (
 
 type Engine interface {
 	Begin(level IsolationLevel) Tx
+	GC() (active, removed int)
 }

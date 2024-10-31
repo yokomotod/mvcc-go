@@ -6,6 +6,7 @@ import (
 	"mvcc-go/engine"
 	"mvcc-go/engine/delta/storage"
 	"mvcc-go/lock"
+	"slices"
 )
 
 type Tx struct {
@@ -74,6 +75,7 @@ type DeltaEngine struct {
 	lastTxID     int
 	lastCommitNo int
 	txInfo       *storage.TxInfo
+	purgeList    []int
 }
 
 func NewDeltaEngine() *DeltaEngine {
@@ -81,21 +83,60 @@ func NewDeltaEngine() *DeltaEngine {
 		storage:     storage.NewDeltaStorage(),
 		lockManager: lock.NewManager(),
 		txInfo: &storage.TxInfo{
-			ActiveTxIDs: make(map[int]struct{}),
-			MinTxID:     1, // first txID
+			ActiveTxIDs:   make(map[int]struct{}),
+			MinTxID:       1, // first txID
+			LastCommitNos: make(map[int]int),
+			MinCommitNo:   0,
 		},
+		purgeList: make([]int, 0),
 	}
 }
 
 func (e *DeltaEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	e.lastTxID++
 	e.txInfo.ActiveTxIDs[e.lastTxID] = struct{}{}
+	e.txInfo.LastCommitNos[e.lastTxID] = e.lastCommitNo
 
+	log.Printf("Begin tx%d, MinCommitNo=%d", e.lastTxID, e.txInfo.MinCommitNo)
 	return newTx(e, level)
 }
 
 func (e *DeltaEngine) commit(tx *Tx) {
 	e.lastCommitNo++
 
+	e.storage.UndoLogs.SetCommitNo(tx.ID, e.lastCommitNo)
+
 	e.txInfo.Delete(tx.ID, e.lastCommitNo)
+
+	e.purge(tx)
+}
+
+func (e *DeltaEngine) purge(tx *Tx) {
+	log.Printf("purge MinCommitNo=%d", tx.engine.txInfo.MinCommitNo)
+
+	if tx.engine.storage.UndoLogs.HasLogs(tx.ID) {
+		e.purgeList = append(e.purgeList, tx.ID)
+	}
+
+	log.Printf("purgeQueue=%+v", e.purgeList)
+	for i := 0; i < len(e.purgeList); {
+		txID := e.purgeList[i]
+		log.Printf("purging txID=%d", txID)
+
+		if tx.engine.storage.UndoLogs.GetCommitNo(txID) > tx.engine.txInfo.MinCommitNo {
+			log.Printf("tx%d has no undoLogs to purge", txID)
+			i++
+			continue
+		}
+
+		log.Printf("tx%d has undoLogs to purge", txID)
+		e.storage.UndoLogs.Delete(txID)
+
+		// remove from purgeQueue
+		e.purgeList = slices.Delete(e.purgeList, i, i+1)
+	}
+}
+
+func (e *DeltaEngine) GC() (active, removed int) {
+	return e.storage.UndoLogs.Len(), 0
 }

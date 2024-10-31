@@ -10,24 +10,32 @@ import (
 type TxInfo struct {
 	ActiveTxIDs map[int]struct{}
 	MinTxID     int
+
+	LastCommitNos map[int]int
+	MinCommitNo   int
 }
 
 func (info *TxInfo) Clone() TxInfo {
 	return TxInfo{
-		ActiveTxIDs: maps.Clone(info.ActiveTxIDs),
-		MinTxID:     info.MinTxID,
+		ActiveTxIDs:   maps.Clone(info.ActiveTxIDs),
+		MinTxID:       info.MinTxID,
+		LastCommitNos: maps.Clone(info.LastCommitNos),
+		MinCommitNo:   info.MinCommitNo,
 	}
 }
 
 func (info *TxInfo) Delete(txID, lastCommitNo int) {
 	delete(info.ActiveTxIDs, txID)
+	delete(info.LastCommitNos, txID)
 
 	if len(info.ActiveTxIDs) == 0 {
 		info.MinTxID = 0
+		info.MinCommitNo = lastCommitNo
 		return
 	}
 
 	info.MinTxID = slices.Min(slices.Collect(maps.Keys(info.ActiveTxIDs)))
+	info.MinCommitNo = slices.Min(slices.Collect(maps.Values(info.LastCommitNos)))
 }
 
 func isVisiable(recordTxID, myTxID int, txInfo TxInfo) bool {

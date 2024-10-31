@@ -10,6 +10,7 @@ type Record struct {
 	Key       string
 	Value     string
 	BeginTxID int
+	EndTxID   int
 }
 
 type TxInfo struct {
@@ -96,6 +97,11 @@ func (s *AppendOnlyStorage) Set(key, value string, txID int) {
 			s.records[i].Value = value
 			return
 		}
+
+		if r.EndTxID == 0 {
+			s.records[i].EndTxID = txID
+			break
+		}
 	}
 
 	s.records = append(s.records, Record{
@@ -103,4 +109,23 @@ func (s *AppendOnlyStorage) Set(key, value string, txID int) {
 		Value:     value,
 		BeginTxID: txID,
 	})
+}
+
+func (s *AppendOnlyStorage) Vacuum(txInfo *TxInfo) (active, removed int) {
+	s.records = slices.DeleteFunc(s.records, func(r Record) bool {
+		if r.EndTxID == 0 {
+			return false
+		}
+
+		if _, ok := txInfo.ActiveTxIDs[r.EndTxID]; ok {
+			active++
+			return false
+		}
+
+		log.Printf("remove %+v", r)
+		removed++
+		return true
+	})
+
+	return active, removed
 }
