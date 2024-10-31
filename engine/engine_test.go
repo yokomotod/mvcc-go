@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"mvcc-go/engine"
+	"mvcc-go/engine/locking"
 	"mvcc-go/engine/naive"
 	"sync"
 	"testing"
@@ -20,6 +21,12 @@ func TestEngine(t *testing.T) {
 			engine: naive.NewNaiveEngine(),
 			want1:  "value1", // dirty read
 			want2:  "value2", // dirty read
+		},
+		{
+			name:   "Locking",
+			engine: locking.NewLockingEngine(),
+			want1:  "value2", // read committed
+			want2:  "value2", // read committed
 		},
 	}
 
