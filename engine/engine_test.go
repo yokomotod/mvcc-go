@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"mvcc-go/engine"
+	"mvcc-go/engine/appendonly"
 	"mvcc-go/engine/locking"
 	"mvcc-go/engine/naive"
 	"sync"
@@ -27,6 +28,12 @@ func TestEngine(t *testing.T) {
 			engine: locking.NewLockingEngine(),
 			want1:  "value2", // read committed
 			want2:  "value2", // read committed
+		},
+		{
+			name:   "AppendOnly_RepeatableRead",
+			engine: appendonly.NewAppendOnlyEngine(),
+			want1:  "value0", // repeatable read
+			want2:  "value0", // repeatable read
 		},
 	}
 
