@@ -15,32 +15,53 @@ func TestEngine(t *testing.T) {
 	cases := []struct {
 		name   string
 		engine engine.Engine
+		level  engine.IsolationLevel
 		want1  string
 		want2  string
 	}{
 		{
 			name:   "Naive",
 			engine: naive.NewNaiveEngine(),
-			want1:  "value1", // dirty read
-			want2:  "value2", // dirty read
+			level:  engine.ReadCommitted, // ignored
+			want1:  "value1",             // dirty read
+			want2:  "value2",             // dirty read
 		},
 		{
 			name:   "Locking",
 			engine: locking.NewLockingEngine(),
-			want1:  "value2", // read committed
-			want2:  "value2", // read committed
+			level:  engine.ReadCommitted, // ignored
+			want1:  "value2",             // read committed
+			want2:  "value2",             // read committed
 		},
+
 		{
 			name:   "AppendOnly_RepeatableRead",
 			engine: appendonly.NewAppendOnlyEngine(),
+			level:  engine.RepeatableRead,
 			want1:  "value0", // repeatable read
 			want2:  "value0", // repeatable read
 		},
 		{
 			name:   "Delta_RepeatableRead",
 			engine: delta.NewDeltaEngine(),
+			level:  engine.RepeatableRead,
 			want1:  "value0", // repeatable read
 			want2:  "value0", // repeatable read
+		},
+
+		{
+			name:   "AppendOnly_ReadCommitted",
+			engine: appendonly.NewAppendOnlyEngine(),
+			level:  engine.ReadCommitted,
+			want1:  "value0", // read committed without lock
+			want2:  "value2", // read committed without lock
+		},
+		{
+			name:   "Delta_ReadCommitted",
+			engine: delta.NewDeltaEngine(),
+			level:  engine.ReadCommitted,
+			want1:  "value0", // read committed without lock
+			want2:  "value2", // read committed without lock
 		},
 	}
 
@@ -56,7 +77,7 @@ func TestEngine(t *testing.T) {
 		// tx3: get key
 
 		t.Run(c.name, func(t *testing.T) {
-			tx1 := c.engine.Begin()
+			tx1 := c.engine.Begin(c.level)
 			t.Log(`tx1.Set("key", "valueX")`)
 			err := tx1.Set("key", "valueX")
 			if err != nil {
@@ -69,7 +90,7 @@ func TestEngine(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			tx2 := c.engine.Begin()
+			tx2 := c.engine.Begin(c.level)
 			t.Log(`tx2.Set("key", "value0")`)
 			err = tx2.Set("key", "value0")
 			if err != nil {
@@ -88,7 +109,7 @@ func TestEngine(t *testing.T) {
 			go func() {
 				defer wg.Done()
 
-				tx3 := c.engine.Begin()
+				tx3 := c.engine.Begin(c.level)
 
 				t.Log(`tx3.Set("key", "value1")`)
 				err := tx3.Set("key", "value1")
@@ -119,7 +140,7 @@ func TestEngine(t *testing.T) {
 			go func() {
 				defer wg.Done()
 
-				tx4 := c.engine.Begin()
+				tx4 := c.engine.Begin(c.level)
 
 				t.Log(`tx4.Get("key") start`)
 				got, err := tx4.Get("key")

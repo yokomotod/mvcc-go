@@ -77,7 +77,7 @@ func NewLockingEngine() *LockingEngine {
 	}
 }
 
-func (e *LockingEngine) Begin() engine.Tx {
+func (e *LockingEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	e.maxTxID++
 
 	return newTx(e, e.maxTxID)

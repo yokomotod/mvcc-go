@@ -10,14 +10,16 @@ import (
 
 type Tx struct {
 	ID         int
+	level      engine.IsolationLevel
 	engine     *DeltaEngine
 	lockedKeys map[string]struct{}
 	txInfo     storage.TxInfo
 }
 
-func newTx(e *DeltaEngine) *Tx {
+func newTx(e *DeltaEngine, level engine.IsolationLevel) *Tx {
 	return &Tx{
 		ID:         e.lastTxID,
+		level:      level,
 		engine:     e,
 		lockedKeys: make(map[string]struct{}),
 		txInfo:     e.txInfo.Clone(),
@@ -26,6 +28,9 @@ func newTx(e *DeltaEngine) *Tx {
 
 func (tx *Tx) Get(key string) (string, error) {
 	log.Printf("Get %+v\n", tx)
+	if tx.level == engine.ReadCommitted {
+		tx.txInfo = tx.engine.txInfo.Clone()
+	}
 
 	value, ok := tx.engine.storage.Get(key, tx.ID, tx.txInfo)
 	if !ok {
@@ -82,11 +87,11 @@ func NewDeltaEngine() *DeltaEngine {
 	}
 }
 
-func (e *DeltaEngine) Begin() engine.Tx {
+func (e *DeltaEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	e.lastTxID++
 	e.txInfo.ActiveTxIDs[e.lastTxID] = struct{}{}
 
-	return newTx(e)
+	return newTx(e, level)
 }
 
 func (e *DeltaEngine) commit(tx *Tx) {

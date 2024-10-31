@@ -9,14 +9,16 @@ import (
 
 type Tx struct {
 	ID         int
+	level      engine.IsolationLevel
 	engine     *AppendOnlyEngine
 	lockedKeys map[string]struct{}
 	txInfo     storage.TxInfo
 }
 
-func newTx(e *AppendOnlyEngine, txID int) *Tx {
+func newTx(e *AppendOnlyEngine, txID int, level engine.IsolationLevel) *Tx {
 	return &Tx{
 		ID:         txID,
+		level:      level,
 		engine:     e,
 		lockedKeys: make(map[string]struct{}),
 		txInfo:     e.txInfo.Clone(),
@@ -24,6 +26,10 @@ func newTx(e *AppendOnlyEngine, txID int) *Tx {
 }
 
 func (tx *Tx) Get(key string) (string, error) {
+	if tx.level == engine.ReadCommitted {
+		tx.txInfo = tx.engine.txInfo.Clone()
+	}
+
 	value, ok := tx.engine.storage.Get(key, tx.ID, tx.txInfo)
 	if !ok {
 		return "", engine.ErrNotFound
@@ -79,11 +85,11 @@ func NewAppendOnlyEngine() *AppendOnlyEngine {
 	}
 }
 
-func (e *AppendOnlyEngine) Begin() engine.Tx {
+func (e *AppendOnlyEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	e.maxTxID++
 	e.txInfo.ActiveTxIDs[e.maxTxID] = struct{}{}
 
-	return newTx(e, e.maxTxID)
+	return newTx(e, e.maxTxID, level)
 }
 
 func (e *AppendOnlyEngine) commit(tx *Tx) {

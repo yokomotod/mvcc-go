@@ -9,7 +9,13 @@ type Tx interface {
 	Set(key, value string) error
 	Commit() error
 }
+type IsolationLevel string
+
+const (
+	ReadCommitted  IsolationLevel = "read_committed"
+	RepeatableRead IsolationLevel = "repeatable_read"
+)
 
 type Engine interface {
-	Begin() Tx
+	Begin(level IsolationLevel) Tx
 }

@@ -46,6 +46,6 @@ func NewNaiveEngine() *NaiveEngine {
 	}
 }
 
-func (e *NaiveEngine) Begin() engine.Tx {
+func (e *NaiveEngine) Begin(level engine.IsolationLevel) engine.Tx {
 	return newTx(e.storage)
 }
